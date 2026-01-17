@@ -24,13 +24,19 @@ class MockMongo:
     
     db = MockDB()
 
-# Mock the mongo import before importing app
+# Mock the flask_pymongo before importing app
 sys.modules['flask_pymongo'] = type('module', (), {'PyMongo': lambda x: MockMongo()})()
+
+# Mock dotenv
+sys.modules['dotenv'] = type('module', (), {'load_dotenv': lambda: None})()
+
+# Set environment variables for testing
+os.environ['MONGO_URI'] = 'mongodb://localhost:27017/test_db'
+os.environ['SECRET_KEY'] = 'test-secret-key'
 
 try:
     from app import app
     app.config['TESTING'] = True
-    app.config['MONGO_URI'] = 'mongodb://localhost:27017/test_db'
 except Exception as e:
     # If app import fails, create a minimal Flask app for testing
     from flask import Flask
@@ -59,13 +65,11 @@ def test_home_page_loads(client):
     """Test that home page loads without crashing"""
     try:
         rv = client.get('/')
-        assert rv.status_code in [200, 500]  # Accept either, as long as it responds
+        assert rv.status_code in [200, 500]
     except Exception:
-        # If route doesn't exist, that's okay for basic pipeline test
         assert True
 
 def test_flask_runs():
     """Test that Flask application can be instantiated"""
     assert app is not None
     assert hasattr(app, 'test_client')
-```
