@@ -67,9 +67,53 @@ pipeline {
     post {
         success {
             echo 'Pipeline completed successfully!'
+            emailext(
+                subject: "✅ Jenkins Build SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """
+                    <html>
+                    <body>
+                        <h2 style="color: green;">Build Successful! ✅</h2>
+                        <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                        <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                        <p><strong>Status:</strong> <span style="color: green; font-weight: bold;">SUCCESS</span></p>
+                        <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                        <hr>
+                        <p><strong>Console Output:</strong> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></p>
+                        <p><strong>Test Results:</strong> <a href="${env.BUILD_URL}testReport">${env.BUILD_URL}testReport</a></p>
+                        <hr>
+                        <p style="color: gray; font-size: 12px;">Timestamp: ${env.BUILD_TIMESTAMP}</p>
+                    </body>
+                    </html>
+                """,
+                to: 'priyankpandey02@gmail.com',
+                mimeType: 'text/html',
+                attachLog: true
+            )
         }
         failure {
             echo 'Pipeline failed!'
+            emailext(
+                subject: "❌ Jenkins Build FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """
+                    <html>
+                    <body>
+                        <h2 style="color: red;">Build Failed! ❌</h2>
+                        <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                        <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                        <p><strong>Status:</strong> <span style="color: red; font-weight: bold;">FAILURE</span></p>
+                        <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                        <hr>
+                        <p><strong>Console Output:</strong> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></p>
+                        <p style="color: red;">Please check the console output for error details.</p>
+                        <hr>
+                        <p style="color: gray; font-size: 12px;">Timestamp: ${env.BUILD_TIMESTAMP}</p>
+                    </body>
+                    </html>
+                """,
+                to: 'priyankpandey02@gmail.com',
+                mimeType: 'text/html',
+                attachLog: true
+            )
         }
         always {
             cleanWs()
