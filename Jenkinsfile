@@ -7,7 +7,6 @@ pipeline {
         MONGO_URI = credentials('MONGO_URI')
         SECRET_KEY = credentials('SECRET_KEY')
         EMAIL_TO = credentials('EMAIL_TO')
-        // Use Jenkins home directory - it has permissions
         DEPLOY_DIR = '/var/lib/jenkins/flask-app-deploy'
     }
     
@@ -74,12 +73,10 @@ pipeline {
                     rm -rf ${DEPLOY_DIR}/venv
                     cp -r venv ${DEPLOY_DIR}/
                     
-                    # Create .env file
+                    # Create .env file with credentials
                     echo "🔑 Creating environment file..."
-                    cat > ${DEPLOY_DIR}/.env <<EOF
-MONGO_URI=${MONGO_URI}
-SECRET_KEY=${SECRET_KEY}
-EOF
+                    echo "MONGO_URI=${MONGO_URI}" > ${DEPLOY_DIR}/.env
+                    echo "SECRET_KEY=${SECRET_KEY}" >> ${DEPLOY_DIR}/.env
                     
                     # Kill any existing Flask process
                     echo "🔄 Stopping existing Flask processes..."
@@ -111,4 +108,30 @@ EOF
                         ps aux | grep "python.*app.py" | grep -v grep
                     else
                         echo "❌ Application failed to start!"
-                        e
+                        echo "📋 Flask log:"
+                        cat ${DEPLOY_DIR}/flask.log || echo "No log file found"
+                        exit 1
+                    fi
+                '''
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+            mail to: "${EMAIL_TO}",
+                 subject: "✅ Jenkins Build SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                 body: "Build succeeded!\n\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nBuild URL: ${env.BUILD_URL}\n\nApplication URL: http://13.57.236.210:5000\nDeploy Location: /var/lib/jenkins/flask-app-deploy\n\nTest Results: All tests passed!"
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+            mail to: "${EMAIL_TO}",
+                 subject: "❌ Jenkins Build FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                 body: "Build failed!\n\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nBuild URL: ${env.BUILD_URL}\n\nConsole Output: ${env.BUILD_URL}console\n\nPlease check the console output for error details."
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
