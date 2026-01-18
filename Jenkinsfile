@@ -7,8 +7,8 @@ pipeline {
         MONGO_URI = credentials('MONGO_URI')
         SECRET_KEY = credentials('SECRET_KEY')
         EMAIL_TO = credentials('EMAIL_TO')
-        // Deployment directory outside Jenkins workspace
-        DEPLOY_DIR = '/home/ubuntu/flask-app'
+        // Use Jenkins home directory - it has permissions
+        DEPLOY_DIR = '/var/lib/jenkins/flask-app-deploy'
     }
     
     stages {
@@ -54,68 +54,61 @@ pipeline {
             steps {
                 echo '🚀 Deploying to staging environment...'
                 sh '''
-                    # Create deployment directory if it doesn't exist
+                    # Create deployment directory
                     mkdir -p ${DEPLOY_DIR}
                     
-                    # Copy application files to deployment directory
-                    cp -r app.py templates/ static/ ${DEPLOY_DIR}/ 2>/dev/null || cp app.py ${DEPLOY_DIR}/
+                    # Copy application files
+                    echo "📁 Copying application files..."
+                    cp app.py ${DEPLOY_DIR}/
+                    
+                    # Copy templates and static if they exist
+                    if [ -d "templates" ]; then
+                        cp -r templates ${DEPLOY_DIR}/
+                    fi
+                    if [ -d "static" ]; then
+                        cp -r static ${DEPLOY_DIR}/
+                    fi
                     
                     # Copy virtual environment
+                    echo "📦 Copying virtual environment..."
+                    rm -rf ${DEPLOY_DIR}/venv
                     cp -r venv ${DEPLOY_DIR}/
                     
-                    # Create .env file in deployment directory
+                    # Create .env file
+                    echo "🔑 Creating environment file..."
                     cat > ${DEPLOY_DIR}/.env <<EOF
 MONGO_URI=${MONGO_URI}
 SECRET_KEY=${SECRET_KEY}
 EOF
                     
                     # Kill any existing Flask process
+                    echo "🔄 Stopping existing Flask processes..."
                     pkill -f "python.*app.py" || true
-                    sleep 2
+                    sleep 3
                     
-                    # Start Flask application from deployment directory
+                    # Navigate to deployment directory and start app
+                    echo "🚀 Starting Flask application..."
                     cd ${DEPLOY_DIR}
                     . venv/bin/activate
                     
-                    # Start Flask in background
-                    nohup ${PYTHON} app.py > flask.log 2>&1 &
-                    echo $! > flask.pid
+                    # Start Flask in background with nohup
+                    nohup ${PYTHON} app.py > ${DEPLOY_DIR}/flask.log 2>&1 &
+                    FLASK_PID=$!
+                    echo $FLASK_PID > ${DEPLOY_DIR}/flask.pid
                     
+                    echo "⏳ Waiting for application to start..."
                     sleep 5
                     
                     # Verify app is running
                     if pgrep -f "python.*app.py" > /dev/null; then
                         echo "✅ Application deployed successfully!"
-                        echo "🌐 Application running at: http://13.57.236.210:5000"
-                        echo "📊 Connected to MongoDB Atlas"
-                        echo "📂 Deployed to: ${DEPLOY_DIR}"
-                        echo "🆔 Process ID: $(cat flask.pid)"
+                        echo "🌐 Application URL: http://13.57.236.210:5000"
+                        echo "📊 Database: MongoDB Atlas"
+                        echo "📂 Deploy Location: ${DEPLOY_DIR}"
+                        echo "🆔 Process ID: $FLASK_PID"
+                        echo ""
+                        echo "📋 Application Status:"
+                        ps aux | grep "python.*app.py" | grep -v grep
                     else
-                        echo "❌ Application failed to start"
-                        echo "📋 Log file content:"
-                        cat flask.log
-                        exit 1
-                    fi
-                '''
-            }
-        }
-    }
-    
-    post {
-        success {
-            echo '✅ Pipeline completed successfully!'
-            mail to: "${EMAIL_TO}",
-                 subject: "✅ Jenkins Build SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-                 body: "Build succeeded!\n\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL}\n\nApplication: http://13.57.236.210:5000\n\nDeployed to: /home/ubuntu/flask-app"
-        }
-        failure {
-            echo '❌ Pipeline failed!'
-            mail to: "${EMAIL_TO}",
-                 subject: "❌ Jenkins Build FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
-                 body: "Build failed!\n\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL}\n\nCheck console: ${env.BUILD_URL}console"
-        }
-        always {
-            cleanWs()  // Now safe to clean - app is deployed elsewhere
-        }
-    }
-}
+                        echo "❌ Application failed to start!"
+                        e
