@@ -4,22 +4,23 @@ pipeline {
     environment {
         PYTHON = 'python3'
         PIP = 'pip3'
-        // Environment variables for Flask app
-        MONGO_URI = 'mongodb+srv://dbXUser:dbXUserPassword@cluster0.fhrg87w.mongodb.net/student_db?retryWrites=true&w=majority'
-        SECRET_KEY = 'jenkins-secret-key-for-flask'
+        // Load credentials from Jenkins securely
+        MONGO_URI = credentials('MONGO_URI')
+        SECRET_KEY = credentials('SECRET_KEY')
+        EMAIL_TO = credentials('EMAIL_TO')
     }
     
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out code from GitHub...'
+                echo '🔍 Checking out code from GitHub...'
                 checkout scm
             }
         }
         
         stage('Build') {
             steps {
-                echo 'Installing dependencies...'
+                echo '📦 Installing dependencies...'
                 sh '''
                     ${PYTHON} -m venv venv
                     . venv/bin/activate
@@ -33,7 +34,7 @@ pipeline {
         
         stage('Test') {
             steps {
-                echo 'Running unit tests...'
+                echo '🧪 Running unit tests...'
                 sh '''
                     . venv/bin/activate
                     export MONGO_URI="${MONGO_URI}"
@@ -53,7 +54,7 @@ pipeline {
                 branch 'main'
             }
             steps {
-                echo 'Deploying to staging environment...'
+                echo '🚀 Deploying to staging environment...'
                 sh '''
                     . venv/bin/activate
                     
@@ -94,7 +95,7 @@ pipeline {
     
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
             emailext(
                 subject: "✅ Jenkins Build SUCCESS: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
                 body: """
@@ -118,13 +119,13 @@ pipeline {
                     </body>
                     </html>
                 """,
-                to: 'priyankpandey02@gmail.com',
+                to: "${env.EMAIL_TO}",
                 mimeType: 'text/html',
                 attachLog: true
             )
         }
         failure {
-            echo 'Pipeline failed!'
+            echo '❌ Pipeline failed!'
             emailext(
                 subject: "❌ Jenkins Build FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
                 body: """
@@ -143,7 +144,7 @@ pipeline {
                     </body>
                     </html>
                 """,
-                to: 'priyankpandey02@gmail.com',
+                to: "${env.EMAIL_TO}",
                 mimeType: 'text/html',
                 attachLog: true
             )
